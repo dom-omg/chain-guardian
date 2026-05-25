@@ -2,6 +2,7 @@
 
 import { ThreatBadge } from "./ThreatBadge";
 import { ScoreRing } from "./ScoreRing";
+import { CertifyPanel } from "./CertifyPanel";
 import type { GuardianAlert } from "@/lib/guardian";
 
 function timeAgo(iso: string) {
@@ -82,6 +83,11 @@ export function AlertCard({ alert }: { alert: GuardianAlert }) {
                 </a>
               ))}
             </div>
+          )}
+
+          {/* Formal proof */}
+          {alert.webIntel && alert.chainIntel && (
+            <CertifyPanel alert={alert} />
           )}
 
           {/* Ecosystem links */}
