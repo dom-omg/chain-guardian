@@ -50,15 +50,25 @@ export default function Home() {
               Web2 × Web3 Threat Intelligence — Bright Data + Wraith
             </p>
           </div>
-          <div className="flex items-center gap-3 text-xs text-slate-500">
+          <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-green-500 inline-block animate-pulse" />
-              Bright Data Live
+              Bright Data
             </span>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-blue-500 inline-block animate-pulse" />
               Wraith 12-Chain
             </span>
+            <a href="https://u-cant-hide.fly.dev" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 hover:text-violet-400 transition-colors">
+              <span className="w-2 h-2 rounded-full bg-violet-500 inline-block" />
+              TRACE
+            </a>
+            <a href="https://skyveil.fly.dev" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 hover:text-emerald-400 transition-colors">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              Skyveil
+            </a>
           </div>
         </div>
       </header>
@@ -119,27 +129,36 @@ export default function Home() {
         </div>
 
         {/* How it works */}
-        <div className="border-t border-slate-800 pt-8 grid grid-cols-3 gap-6 text-center">
+        <div className="border-t border-slate-800 pt-8 grid grid-cols-4 gap-4 text-center">
           {[
             {
               step: "01",
-              title: "Bright Data Scans the Web",
-              desc: "SERP API + Web Unlocker searches forums, news, and dark-web sources for wallet mentions and threat signals.",
+              title: "Bright Data",
+              color: "text-green-500",
+              desc: "SERP API + Web Unlocker scans news, forums, OSINT reports, and government sanction lists in real time.",
             },
             {
               step: "02",
-              title: "Wraith Reads the Chain",
-              desc: "On-chain forensics across 12 blockchains: OFAC hits, mixer flows, exploit patterns, entity attribution.",
+              title: "Wraith 12-Chain",
+              color: "text-blue-500",
+              desc: "On-chain forensics: OFAC hits, mixer flows, exploit patterns, entity attribution across 12 blockchains.",
             },
             {
               step: "03",
-              title: "AI Synthesizes Both",
-              desc: "Claude correlates web intelligence + chain signals into a composite threat score and written assessment.",
+              title: "Our Intelligence",
+              color: "text-violet-500",
+              desc: "TRACE ops room + Skyveil geospatial — real criminal wallets mapped across jurisdictions and exchanges.",
+            },
+            {
+              step: "04",
+              title: "The Synthesis",
+              color: "text-orange-500",
+              desc: "Composite threat score + written assessment. BLOCK / MONITOR / CLEAR with jurisdiction coverage.",
             },
           ].map(s => (
             <div key={s.step} className="space-y-2">
-              <div className="text-3xl font-bold text-slate-800">{s.step}</div>
-              <div className="text-sm font-semibold text-slate-300">{s.title}</div>
+              <div className={`text-3xl font-bold ${s.color} opacity-40`}>{s.step}</div>
+              <div className={`text-sm font-semibold ${s.color}`}>{s.title}</div>
               <div className="text-xs text-slate-500 leading-relaxed">{s.desc}</div>
             </div>
           ))}

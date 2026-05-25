@@ -83,6 +83,34 @@ export function AlertCard({ alert }: { alert: GuardianAlert }) {
               ))}
             </div>
           )}
+
+          {/* Ecosystem links */}
+          <div className="mt-3 pt-3 border-t border-slate-800 flex gap-2 flex-wrap">
+            <a
+              href={`https://u-cant-hide.fly.dev?wallet=${alert.wallet}&chain=${alert.chain}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-bold px-3 py-1 rounded bg-violet-950 text-violet-400 border border-violet-800 hover:bg-violet-900 transition-colors"
+            >
+              TRACE →
+            </a>
+            <a
+              href={`https://wraith-007.fly.dev?address=${alert.wallet}&chain=${alert.chain}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-bold px-3 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 hover:bg-cyan-900 transition-colors"
+            >
+              Wraith →
+            </a>
+            <a
+              href="https://skyveil.fly.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-bold px-3 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 hover:bg-emerald-900 transition-colors"
+            >
+              Skyveil →
+            </a>
+          </div>
         </div>
       </div>
     </div>
