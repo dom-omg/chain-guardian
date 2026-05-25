@@ -36,18 +36,21 @@ async function synthesize(web: WebIntelResult, chain: WraithIntel): Promise<stri
 WEB INTEL (Bright Data SERP scan):
 - Wallet: ${web.wallet}
 - Web risk score: ${web.riskScore}/100
-- Threat keywords found: ${web.threatKeywords.join(", ") || "none"}
-- Mentions count: ${web.mentions.length}
+- Threat keywords: ${web.threatKeywords.join(", ") || "none"}
+- Web mentions: ${web.mentions.length}
 - Top sources: ${web.mentions.slice(0, 3).map(m => m.source).join(", ")}
 
-ON-CHAIN INTEL (Wraith):
+ON-CHAIN INTEL (Wraith 12-chain):
 - Chain: ${chain.chain}
-- On-chain risk score: ${chain.riskScore}/100
-- Entity: ${chain.entity ?? "unknown"}
+- Risk score: ${chain.riskScore}/100
+- Verdict: ${chain.verdict ?? "unknown"}
+- Labels: ${chain.labels.join(", ") || "none"}
 - Signals: ${chain.signals.map(s => `${s.type}(${s.severity})`).join(", ") || "none"}
+- Jurisdictions: ${chain.jurisdictions.join(", ") || "none"}
+- Recommended action: ${chain.recommendedAction ?? "none"}
 - Exposure: ${chain.exposure ? `sanctions:${chain.exposure.sanctions}% mixer:${chain.exposure.mixer}% darknet:${chain.exposure.darknet}%` : "N/A"}
 
-Write a concise threat assessment. Be direct and factual. No markdown.`;
+Write a 2-sentence threat assessment. Be direct and factual. No markdown.`;
 
   const msg = await client.messages.create({
     model: "claude-haiku-4-5-20251001",

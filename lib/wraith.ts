@@ -9,8 +9,6 @@ export interface OnChainSignal {
   severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   description: string;
   chain: Chain;
-  txHash?: string;
-  timestamp?: string;
 }
 
 export interface ExposureResult {
@@ -29,77 +27,109 @@ export interface WraithIntel {
   exposure: ExposureResult | null;
   riskScore: number;
   entity: string | null;
+  verdict: string | null;
+  recommendedAction: string | null;
+  jurisdictions: string[];
+  labels: string[];
 }
 
-export async function screenWallet(address: string, chain: Chain): Promise<OnChainSignal[]> {
-  try {
-    const res = await fetch(`${WRAITH_URL}/api/v1/screen?address=${address}&chain=${chain}`, {
-      headers: { "Content-Type": "application/json" },
-      next: { revalidate: 0 },
+interface IntelResponse {
+  risk_score?: number;
+  risk_tier?: string;
+  risk_signals?: string[];
+  risk_justification?: string;
+  labels?: string[];
+  entity_type?: string;
+  verdict?: string;
+  recommended_action?: string;
+  jurisdictions?: string[];
+  ofac?: boolean;
+  mixer?: boolean;
+  scam?: boolean;
+  exchange?: boolean;
+  bridge?: boolean;
+}
+
+function mapSignals(intel: IntelResponse, chain: Chain): OnChainSignal[] {
+  const signals: OnChainSignal[] = [];
+  const tier = (intel.risk_tier ?? "LOW").toUpperCase();
+  const severity = (
+    tier === "CRITICAL" ? "CRITICAL"
+    : tier === "HIGH" ? "HIGH"
+    : tier === "MEDIUM" ? "MEDIUM"
+    : "LOW"
+  ) as OnChainSignal["severity"];
+
+  for (const sig of intel.risk_signals ?? []) {
+    const typeMap: Record<string, string> = {
+      ofac_direct: "OFAC",
+      mixer: "MIXER",
+      scam: "SCAM",
+      exploit: "EXPLOIT",
+      darknet: "DARKNET",
+      bridge: "BRIDGE",
+      exchange: "CEX",
+    };
+    signals.push({
+      type: typeMap[sig] ?? sig.toUpperCase(),
+      severity,
+      description: intel.risk_justification ?? sig,
+      chain,
     });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.signals ?? [];
-  } catch {
-    return [];
   }
+
+  // Fallback from boolean flags
+  if (signals.length === 0) {
+    if (intel.ofac) signals.push({ type: "OFAC", severity: "CRITICAL", description: "OFAC SDN match", chain });
+    if (intel.mixer) signals.push({ type: "MIXER", severity: "HIGH", description: "Mixer protocol detected", chain });
+    if (intel.scam) signals.push({ type: "SCAM", severity: "HIGH", description: "Scam address", chain });
+  }
+
+  return signals;
 }
 
-export async function getExposure(address: string, chain: Chain): Promise<ExposureResult | null> {
+export async function getWraithIntel(address: string, chain: Chain): Promise<WraithIntel> {
+  let intel: IntelResponse = {};
+
+  try {
+    const res = await fetch(
+      `${WRAITH_URL}/api/v1/intel?address=${address}&chain=${chain}`,
+      { next: { revalidate: 0 } }
+    );
+    if (res.ok) intel = await res.json();
+  } catch {
+    // Wraith unavailable — degrade gracefully
+  }
+
+  // Fetch exposure separately
+  let exposure: ExposureResult | null = null;
   try {
     const res = await fetch(
       `${WRAITH_URL}/api/exposure?address=${address}&chain=${chain}&depth=3`,
       { next: { revalidate: 0 } }
     );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.exposure ?? null;
+    if (res.ok) {
+      const data = await res.json();
+      exposure = data.exposure ?? null;
+    }
   } catch {
-    return null;
+    // ignore
   }
-}
 
-export async function getEntity(address: string, chain: Chain): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `${WRAITH_URL}/api/entity?address=${address}&chain=${chain}`,
-      { next: { revalidate: 0 } }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.name ?? data.entity ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function scoreSignals(signals: OnChainSignal[], exposure: ExposureResult | null): number {
-  let score = 0;
-  for (const s of signals) {
-    if (s.severity === "CRITICAL") score += 40;
-    else if (s.severity === "HIGH") score += 25;
-    else if (s.severity === "MEDIUM") score += 10;
-    else score += 5;
-  }
-  if (exposure) {
-    score += Math.round((exposure.sanctions + exposure.darknet + exposure.mixer) / 3);
-  }
-  return Math.min(100, score);
-}
-
-export async function getWraithIntel(address: string, chain: Chain): Promise<WraithIntel> {
-  const [signals, exposure, entity] = await Promise.all([
-    screenWallet(address, chain),
-    getExposure(address, chain),
-    getEntity(address, chain),
-  ]);
+  const signals = mapSignals(intel, chain);
+  const riskScore = intel.risk_score ?? 0;
+  const entity = intel.labels?.[0] ?? intel.entity_type ?? null;
 
   return {
     wallet: address,
     chain,
     signals,
     exposure,
-    riskScore: scoreSignals(signals, exposure),
+    riskScore,
     entity,
+    verdict: intel.verdict ?? null,
+    recommendedAction: intel.recommended_action ?? null,
+    jurisdictions: intel.jurisdictions ?? [],
+    labels: intel.labels ?? [],
   };
 }
