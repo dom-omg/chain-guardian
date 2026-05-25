@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import type { VerdictCertificate } from "@/lib/verdict";
 import type { GuardianAlert } from "@/lib/guardian";
 
@@ -43,9 +44,7 @@ export function CertifyPanel({ alert }: Props) {
     ? "text-green-400 border-green-800 bg-green-950"
     : "text-red-400 border-red-800 bg-red-950";
 
-  const qrUrl = cert
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(cert.verify_url)}`
-    : null;
+  const verifyUrl = cert?.verify_url ?? "";
 
   return (
     <div className="mt-3 pt-3 border-t border-slate-800">
@@ -79,10 +78,15 @@ export function CertifyPanel({ alert }: Props) {
 
           {/* QR */}
           <div className="flex flex-col items-center gap-1">
-            {qrUrl && (
-              <a href={cert.verify_url} target="_blank" rel="noopener noreferrer">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={qrUrl} alt="Verify certificate" width={96} height={96} className="rounded opacity-90 hover:opacity-100" />
+            {verifyUrl && (
+              <a href={verifyUrl} target="_blank" rel="noopener noreferrer">
+                <QRCodeSVG
+                  value={verifyUrl}
+                  size={96}
+                  bgColor="#0f172a"
+                  fgColor="#e2e8f0"
+                  level="M"
+                />
               </a>
             )}
             <span className="text-xs text-slate-600">Scan to verify</span>

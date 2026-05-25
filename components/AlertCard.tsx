@@ -101,7 +101,7 @@ export function AlertCard({ alert }: { alert: GuardianAlert }) {
               TRACE →
             </a>
             <a
-              href={`https://wraith-007.fly.dev?address=${alert.wallet}&chain=${alert.chain}`}
+              href={`https://wraith-007.fly.dev/ops?address=${alert.wallet}&chain=${alert.chain}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs font-bold px-3 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 hover:bg-cyan-900 transition-colors"
