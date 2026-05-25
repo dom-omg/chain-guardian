@@ -31,114 +31,129 @@ interface MCPToolResult {
 
 async function callMCPTool(
   tool: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  timeoutMs = 30000
 ): Promise<string> {
-  // 1. Open SSE to get session ID
-  const sseRes = await fetch(MCP_SSE_URL, {
-    headers: { Accept: "text/event-stream" },
-  });
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
 
-  if (!sseRes.ok || !sseRes.body) {
-    throw new Error(`MCP SSE connect failed: ${sseRes.status}`);
-  }
+  try {
+    // 1. Open SSE to get session ID
+    const sseRes = await fetch(MCP_SSE_URL, {
+      headers: { Accept: "text/event-stream" },
+      signal: abort.signal,
+    });
 
-  const reader = sseRes.body.getReader();
-  const decoder = new TextDecoder();
-
-  // Read until we get the endpoint event
-  let sessionId = "";
-  let buffer = "";
-
-  while (!sessionId) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    for (const line of lines) {
-      if (line.startsWith("data: /messages?sessionId=")) {
-        sessionId = line.replace("data: /messages?sessionId=", "").trim();
-      }
+    if (!sseRes.ok || !sseRes.body) {
+      throw new Error(`MCP SSE connect failed: ${sseRes.status}`);
     }
-    buffer = lines[lines.length - 1];
-  }
 
-  if (!sessionId) throw new Error("No MCP session ID received");
+    const reader = sseRes.body.getReader();
+    const decoder = new TextDecoder();
 
-  const msgUrl = `https://mcp.brightdata.com/messages?sessionId=${sessionId}`;
+    // Read until we get the endpoint event
+    let sessionId = "";
+    let buffer = "";
 
-  // 2. Initialize
-  await fetch(msgUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      method: "initialize",
-      params: {
-        protocolVersion: "2024-11-05",
-        capabilities: {},
-        clientInfo: { name: "chain-guardian", version: "1.0" },
-      },
-      id: 1,
-    }),
-  });
-
-  // 3. Call tool
-  await fetch(msgUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      method: "tools/call",
-      params: { name: tool, arguments: args },
-      id: 2,
-    }),
-  });
-
-  // 4. Read SSE response for tool result
-  let result = "";
-  let msgCount = 0;
-
-  while (msgCount < 20) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    const lines = chunk.split("\n");
-
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      try {
-        const msg = JSON.parse(line.slice(6));
-        if (msg.id === 2 && msg.result) {
-          const r = msg.result as MCPToolResult;
-          result = r.content?.map(c => c.text).join("\n") ?? "";
-          reader.cancel();
-          return result;
+    while (!sessionId) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      for (const line of lines) {
+        if (line.startsWith("data: /messages?sessionId=")) {
+          sessionId = line.replace("data: /messages?sessionId=", "").trim();
         }
-      } catch {
-        // skip non-JSON lines
+      }
+      buffer = lines[lines.length - 1];
+    }
+
+    if (!sessionId) throw new Error("No MCP session ID received");
+
+    const msgUrl = `https://mcp.brightdata.com/messages?sessionId=${sessionId}`;
+
+    // 2. Initialize
+    await fetch(msgUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "chain-guardian", version: "1.0" },
+        },
+        id: 1,
+      }),
+      signal: abort.signal,
+    });
+
+    // 3. Call tool
+    await fetch(msgUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: { name: tool, arguments: args },
+        id: 2,
+      }),
+      signal: abort.signal,
+    });
+
+    // 4. Read SSE stream until we find id:2 result (no chunk limit)
+    let result = "";
+    let fullBuffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      fullBuffer += decoder.decode(value, { stream: true });
+
+      const lines = fullBuffer.split("\n");
+      fullBuffer = lines[lines.length - 1]; // keep incomplete line
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const msg = JSON.parse(line.slice(6));
+          if (msg.id === 2 && msg.result) {
+            const r = msg.result as MCPToolResult;
+            result = r.content?.map(c => c.text).join("\n") ?? "";
+            reader.cancel();
+            return result;
+          }
+          if (msg.id === 2 && msg.error) {
+            reader.cancel();
+            return "";
+          }
+        } catch {
+          // skip non-JSON lines
+        }
       }
     }
-    msgCount++;
-  }
 
-  reader.cancel();
-  return result;
+    reader.cancel();
+    return result;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // --- Search wallet mentions ---
 
 export async function searchWalletMentions(address: string): Promise<SerpResult[]> {
-  const queries = [
-    `"${address}" crypto fraud scam hack`,
-    `"${address}" sanctioned mixer darknet`,
-  ];
+  // Single focused query — faster and sufficient for threat detection
+  const query = `"${address}" crypto scam hack sanctioned fraud mixer`;
 
-  // Use batch for efficiency
   let raw = "";
   try {
-    raw = await callMCPTool("search_engine_batch", {
-      queries: queries.map(q => ({ query: q, engine: "google", geo_location: "us" })),
-    });
+    raw = await callMCPTool("search_engine", {
+      query,
+      engine: "google",
+      geo_location: "us",
+    }, 25000);
   } catch {
     return [];
   }
@@ -153,7 +168,7 @@ export async function searchWalletMentions(address: string): Promise<SerpResult[
       const parsed = JSON.parse(chunk);
       const organic = Array.isArray(parsed)
         ? parsed
-        : parsed.organic_results ?? parsed.results ?? [];
+        : parsed.organic ?? parsed.organic_results ?? parsed.results ?? [];
 
       for (const item of organic) {
         const url = item.url ?? item.link ?? "";
